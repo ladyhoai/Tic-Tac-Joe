@@ -13,6 +13,7 @@ classdef UR3e < RobotBaseClass
         leftHandTrans = transl(0,0,-0.01)  * troty(-pi/2);
         rightHandTrans = transl(0,0,-0.01)  * troty(-pi/2) * trotx(-pi);
         armJoint = [0 0 0 0 0 0 0];
+        homePos = [-0.85, 0.95, 0.2];
         mapStartTopRight = [-0.75, 0.25];
         XPlaced = 1;
         XArray;
@@ -71,27 +72,41 @@ classdef UR3e < RobotBaseClass
 
             posObj = self.helperPlayer.objLocation(self.XPlaced);
 
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.2]);
+            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]', [180 0 0], false, 'RMRC');
             self.MoveRobot([posObj(1), posObj(2), posObj(3)]);
             self.attachGripper = '1';
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.2]);
-            % self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.2]);
-            self.MoveRobot([actualX, actualY, posObj(3) + 0.2]);
-            self.MoveRobot([actualX, actualY, 0]);
+            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]);
+
+            self.MoveRobot(self.homePos);
+            self.MoveRobot([actualX, actualY, posObj(3) + 0.1]);
+            self.MoveRobot([actualX, actualY, 0]', [180 0 0], false, 'RMRC');
             self.attachGripper = '0';
-            self.MoveRobot([actualX, actualY, 0.2]);
+            self.MoveRobot([actualX, actualY, 0.1]);
+            self.MoveRobot(self.homePos);
             
             self.XPlaced = self.XPlaced + 1;
         end
 
-        function MoveRobot(self, goal, orientation)
+        function MoveRobot(self, goal, orientation, objHandler, varargin)
             if (nargin == 2)
                 endEffector = transl(goal(1), goal(2), goal(3)) * (trotx(180, "deg") * trotz(0, "deg"));
             else
                 endEffector = transl(goal(1), goal(2), goal(3)) * (trotx(orientation(1), "deg") * troty(orientation(2), "deg") * trotz(orientation(3), "deg"));
             end
             pose1 = self.model.ikcon(endEffector * transl(0,0,-0.075), self.armJoint);
-            endTraj = jtraj(self.armJoint, pose1, 50);
+
+            if (isempty(varargin))
+                endTraj = jtraj(self.armJoint, pose1, 50);
+            else
+                for i = 1:2:length(varargin)
+                    switch varargin{i}
+                        case 'RMRC'
+                            endTraj = self.calculateRMRC(goal, orientation); % the qMatrix returned by RMRC calculation
+                            endTraj(end, :) = [];
+                    end
+                end
+            end
+            
             for i = 1:size(endTraj, 1)
                 self.model.animate(endTraj(i, :));
                 fkineEndTraj = self.model.fkine(endTraj(i, :));
@@ -104,6 +119,10 @@ classdef UR3e < RobotBaseClass
                 self.handLeft.model.animate(self.handLeft.model.getpos());
                 self.handRight.model.animate(self.handRight.model.getpos());
 
+                if (nargin == 4 && isempty(varargin))   
+                    objHandler.updateTransferredObject(fkineEndTraj);
+                end
+
                 if self.attachGripper == '1'
                     newVer =  (fkineEndTraj(1:3,1:3) * self.originalTransform')' + fkineEndTraj(1:3, 4)';
                     set(self.XArray(self.XPlaced), 'Vertices', newVer);
@@ -113,15 +132,27 @@ classdef UR3e < RobotBaseClass
             end
         end
 
+        function receiveTransferAndPlace(self, objHandler, pos)
+            actualX = self.mapStartTopRight(1) + 0.1 * pos(1);
+            actualY = self.mapStartTopRight(2) + 0.1 * pos(2);
+            self.MoveRobot([actualX, actualY, 0.1], [180 0 0], objHandler);
+            self.MoveRobot([actualX, actualY, 0], [180 0 0], objHandler);
+            self.MoveRobot([actualX, actualY, 0.1], [180 0 0]);
+            self.MoveRobot(self.homePos', [180 0 0], false, 'RMRC');
+        end
         
         function payload = fetchObjToTransfer(self)
             posObj = self.helperPlayer.objLocation(self.XPlaced);
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.2]);
+            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]', [180 0 0], false, 'RMRC');
             self.MoveRobot([posObj(1), posObj(2), posObj(3)]);
+
             self.attachGripper = '1';
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.2]);
-            self.MoveRobot([-0.5, 0.6, 0.6], [90, 90, 0]);
+            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]);
+            self.MoveRobot(self.homePos);
+
+            self.MoveRobot([-0.5, 0.6, 0.5], [90, 90, 90]);
             self.attachGripper = '0';
+
             payload = self.XArray(self.XPlaced);
             self.XPlaced = self.XPlaced + 1;
         end
@@ -130,6 +161,41 @@ classdef UR3e < RobotBaseClass
             newVer =  (transform(1:3,1:3) * self.originalTransform')' + transform(1:3, 4)';
             set(self.XArray(self.XPlaced - 1), 'Vertices', newVer);
         end
+
+        function res = calculateRMRC(self, goal, orientation) 
+            steps = 50;
+            deltaT = 0.05; % Discrete time step
+            
+            x = zeros(3,steps); % for translation
+            rotTraj = zeros(3, steps); % 3 rows for roll, pitch, yaw
+            currentPose = self.model.fkine(self.armJoint).T;
+            currentTrans = currentPose(1:3, 4);
+            currentRot = currentPose(1:3, 1:3);
+
+            RGoal = rpy2r(deg2rad(orientation(1)), deg2rad(orientation(2)), deg2rad(orientation(3)));
+            s = lspb(0,1,steps); % Create interpolation scalar
+
+            for i = 1:steps
+                x(:,i) = currentTrans*(1-s(i)) + s(i)*goal; % Create trajectory in x-y
+                Ri = currentRot * (1 - s(i)) + RGoal * s(i); % Interpolate between rotation matrices
+                rotTraj(:,i) = tr2rpy(Ri); % Convert back to roll, pitch, yaw
+            end
+
+            qMatrix = nan(steps,7);
+            qMatrix(1, :) = self.armJoint;
+
+             for i = 1:steps-1
+                xdot = (x(:,i+1) - x(:,i))/deltaT; % Calculate
+                xdot_rot = (rotTraj(:,i+1) - rotTraj(:,i)) / deltaT; % Rotational velocity
+                xdot = [xdot; xdot_rot];
+                J = self.model.jacob0(qMatrix(i,:)); % Get the Jacobian at the current state
+                qdot = pinv(J)*xdot; % Solve velocitities via RMRC
+                qMatrix(i+1,:) = qMatrix(i,:) + deltaT*qdot'; % Update next
+            end
+            
+            res = qMatrix;
+        end
+
 
     end
 end
