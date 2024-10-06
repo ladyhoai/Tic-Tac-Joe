@@ -20,6 +20,13 @@ classdef UR3e < RobotBaseClass
         helperPlayer;
         attachGripper = 0;
         originalTransform;
+
+         %these variables hold the current state of the system
+        estop = false;
+        currentFinalGoal;
+        currentTraj;
+        currentStep = 1;
+        currentPoint = 1;
     end
     
     methods
@@ -42,11 +49,12 @@ classdef UR3e < RobotBaseClass
 			self.model.base = self.model.base.T * baseTr;
             self.model.tool = self.toolTr;
             self.PlotAndColourRobot();
+
             self.handLeft = GripperHand(self.model.fkine(self.model.getpos()).T * self.rightHandTrans * trotz(pi/1.5)); 
             self.handRight = GripperHand(self.model.fkine(self.model.getpos()).T * self.leftHandTrans * trotz(pi/1.5)); 
 
             self.helperPlayer = helper();
-            self.XArray = self.helperPlayer.placeXandO("OTick.PLY", self.XArray, baseTr);
+            self.XArray = self.helperPlayer.placeXandO("OTick.PLY", self.XArray, baseTr, -0.25);
             a = PlaceObject("OTick.PLY", [0,0,0]);
             self.originalTransform = get(a, 'Vertices');
             delete(a);
@@ -72,47 +80,97 @@ classdef UR3e < RobotBaseClass
 
             posObj = self.helperPlayer.objLocation(self.XPlaced);
 
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]', [180 0 0], false, 'RMRC');
-            self.MoveRobot([posObj(1), posObj(2), posObj(3)]);
-            self.attachGripper = '1';
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]);
+            if self.currentPoint == 1
+                self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]', [180 0 0], false, 'RMRC');
+            end
 
-            self.MoveRobot(self.homePos);
-            self.MoveRobot([actualX, actualY, posObj(3) + 0.1]);
-            self.MoveRobot([actualX, actualY, 0]', [180 0 0], false, 'RMRC');
-            self.attachGripper = '0';
-            self.MoveRobot([actualX, actualY, 0.1]);
-            self.MoveRobot(self.homePos);
-            
+            if self.currentPoint == 2
+                self.MoveRobot([posObj(1), posObj(2), posObj(3)]);
+            end
+
+            if self.currentPoint == 3
+                self.attachGripper = '1';
+                self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]);
+            end
+
+            if self.currentPoint == 4
+                self.MoveRobot(self.homePos);
+            end
+
+            if self.currentPoint == 5
+                self.MoveRobot([actualX, actualY, posObj(3) + 0.1]);
+            end
+
+            if self.currentPoint == 6
+                self.MoveRobot([actualX, actualY, 0.08]', [180 0 0], false, 'RMRC');
+            end
+
+            if self.currentPoint == 7
+                self.attachGripper = '0';
+                self.MoveRobot([actualX, actualY, 0.1]);
+            end
+
+            if self.currentPoint == 8
+                self.MoveRobot(self.homePos);
+            end
+
+            if self.estop == true
+                return;
+            end
+
+            self.currentPoint = 1;
             self.XPlaced = self.XPlaced + 1;
         end
 
         function MoveRobot(self, goal, orientation, objHandler, varargin)
-            if (nargin == 2)
-                endEffector = transl(goal(1), goal(2), goal(3)) * (trotx(180, "deg") * trotz(0, "deg"));
-            else
-                endEffector = transl(goal(1), goal(2), goal(3)) * (trotx(orientation(1), "deg") * troty(orientation(2), "deg") * trotz(orientation(3), "deg"));
-            end
-            pose1 = self.model.ikcon(endEffector * transl(0,0,-0.075), self.armJoint);
 
-            if (isempty(varargin))
-                endTraj = jtraj(self.armJoint, pose1, 50);
-            else
-                for i = 1:2:length(varargin)
-                    switch varargin{i}
-                        case 'RMRC'
-                            endTraj = self.calculateRMRC(goal, orientation); % the qMatrix returned by RMRC calculation
-                            endTraj(end, :) = [];
+            if self.estop == true
+                return;
+            end
+
+            global sliderArrayPlayer;
+            global jointArrayPlayer;
+            global jointArrayPlayerValue;
+
+            if (self.currentStep == 1)
+                if (nargin == 2)
+                    endEffector = transl(goal(1), goal(2), goal(3)) * (trotx(180, "deg") * trotz(0, "deg"));
+                else
+                    endEffector = transl(goal(1), goal(2), goal(3)) * (trotx(orientation(1), "deg") * troty(orientation(2), "deg") * trotz(orientation(3), "deg"));
+                end
+                pose1 = self.model.ikcon(endEffector * transl(0,0,-0.075), self.armJoint);
+    
+                if (isempty(varargin))
+                    self.currentTraj = jtraj(self.armJoint, pose1, 50);
+                else
+                    for i = 1:2:length(varargin)
+                        switch varargin{i}
+                            case 'RMRC'
+                                self.currentTraj = self.calculateRMRC(goal, orientation); % the qMatrix returned by RMRC calculation
+                                self.currentTraj(end, :) = [];
+                        end
                     end
                 end
             end
-            
-            for i = 1:size(endTraj, 1)
-                self.model.animate(endTraj(i, :));
-                fkineEndTraj = self.model.fkine(endTraj(i, :));
+
+            for i = self.currentStep:size(self.currentTraj, 1)
+                if self.estop == true
+                    self.currentStep = i;
+                    return;
+                end
+
+                self.model.animate(self.currentTraj(i, :));
+
+                for y = 1:6
+                    set(sliderArrayPlayer(y), 'Value', self.currentTraj(i, y));
+                    set(jointArrayPlayerValue(y), 'String', num2str(self.currentTraj(i, y), 3));
+                end
+                jointArrayPlayer = self.currentTraj(i, :);
+
+                fkineEndTraj = self.model.fkine(self.currentTraj(i, :));
                 fkineEndTraj = fkineEndTraj.T * transl(0,0,0.06);
 
-                self.armJoint = endTraj(i, :);
+                self.armJoint = self.currentTraj(i, :);
                 endPose = self.model.fkine(self.armJoint);
                 self.handLeft.model.base = endPose.T * self.leftHandTrans * trotz(pi/2.4); 
                 self.handRight.model.base = endPose.T * self.rightHandTrans * trotz(pi/2.4);
@@ -130,29 +188,64 @@ classdef UR3e < RobotBaseClass
 
                 drawnow;
             end
+
+            self.currentStep = 1;
+            self.currentPoint = self.currentPoint + 1;
         end
 
         function receiveTransferAndPlace(self, objHandler, pos)
             actualX = self.mapStartTopRight(1) + 0.1 * pos(1);
             actualY = self.mapStartTopRight(2) + 0.1 * pos(2);
-            self.MoveRobot([actualX, actualY, 0.1], [180 0 0], objHandler);
-            self.MoveRobot([actualX, actualY, 0], [180 0 0], objHandler);
-            self.MoveRobot([actualX, actualY, 0.1], [180 0 0]);
-            self.MoveRobot(self.homePos', [180 0 0], false, 'RMRC');
+            if self.currentPoint == 1
+                self.MoveRobot([actualX, actualY, 0.1], [180 0 0], objHandler);
+            end
+            if self.currentPoint == 2
+                self.MoveRobot([actualX, actualY, 0], [180 0 0], objHandler);
+            end
+            if self.currentPoint == 3
+                self.MoveRobot([actualX, actualY, 0.1], [180 0 0]);
+            end
+            if self.currentPoint == 4
+                self.MoveRobot(self.homePos);
+            end
+
+            if self.estop == true
+                return;
+            end
+
+            self.currentPoint = 1;
         end
         
         function payload = fetchObjToTransfer(self)
             posObj = self.helperPlayer.objLocation(self.XPlaced);
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]', [180 0 0], false, 'RMRC');
-            self.MoveRobot([posObj(1), posObj(2), posObj(3)]);
 
-            self.attachGripper = '1';
-            self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]);
-            self.MoveRobot(self.homePos);
+            if self.currentPoint == 1
+                self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]', [180 0 0], false, 'RMRC');
+            end
 
-            self.MoveRobot([-0.5, 0.6, 0.5], [90, 90, 90]);
+            if self.currentPoint == 2
+                self.MoveRobot([posObj(1), posObj(2), posObj(3)]);
+            end
+
+            if self.currentPoint == 3
+                self.attachGripper = '1';
+                self.MoveRobot([posObj(1), posObj(2), posObj(3) + 0.1]);
+            end
+
+            if self.currentPoint == 4
+                self.MoveRobot(self.homePos);
+            end
+
+            if self.currentPoint == 5
+                self.MoveRobot([-0.5, 0.6, 0.5], [90, 90, 90]);
+            end
+
+            if self.estop == true
+                return;
+            end
+
+            self.currentPoint = 1;
             self.attachGripper = '0';
-
             payload = self.XArray(self.XPlaced);
             self.XPlaced = self.XPlaced + 1;
         end
@@ -162,13 +255,18 @@ classdef UR3e < RobotBaseClass
             set(self.XArray(self.XPlaced - 1), 'Vertices', newVer);
         end
 
-        function res = calculateRMRC(self, goal, orientation) 
-            steps = 50;
+        function res = calculateRMRC(self, goal, orientation, curJointAngle, numStep) 
+            if (nargin == 5)
+                steps = numStep;
+            else
+                steps = 50;
+            end
+
             deltaT = 0.05; % Discrete time step
             
             x = zeros(3,steps); % for translation
             rotTraj = zeros(3, steps); % 3 rows for roll, pitch, yaw
-            currentPose = self.model.fkine(self.armJoint).T;
+            currentPose = self.model.fkine(curJointAngle).T;
             currentTrans = currentPose(1:3, 4);
             currentRot = currentPose(1:3, 1:3);
 
@@ -182,7 +280,7 @@ classdef UR3e < RobotBaseClass
             end
 
             qMatrix = nan(steps,7);
-            qMatrix(1, :) = self.armJoint;
+            qMatrix(1, :) = curJointAngle;
 
              for i = 1:steps-1
                 xdot = (x(:,i+1) - x(:,i))/deltaT; % Calculate
@@ -194,6 +292,23 @@ classdef UR3e < RobotBaseClass
             end
             
             res = qMatrix;
+        end
+
+        function stop(self)
+            self.estop = true;
+        end
+
+        function resume(self)
+            self.estop = false;
+        end
+
+        function animateWithGripper(self, jointVal)
+            self.model.animate(jointVal);
+            endPose = self.model.fkine(jointVal);
+            self.handLeft.model.base = endPose.T * self.leftHandTrans * trotz(pi/2.4); 
+            self.handRight.model.base = endPose.T * self.rightHandTrans * trotz(pi/2.4);
+            self.handLeft.model.animate(self.handLeft.model.getpos());
+            self.handRight.model.animate(self.handRight.model.getpos());
         end
 
 
