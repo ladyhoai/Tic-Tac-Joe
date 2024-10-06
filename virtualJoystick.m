@@ -74,43 +74,7 @@ function virtualJoystick(fig, pos)
 
     end
 
-    % Mouse movement function
-    function mouseMove(~, ~)
-        if isMoving % Update position only if moving
-            pt = get(axesHandle, 'CurrentPoint'); % Get mouse position
-            x = pt(1, 1);
-            y = pt(1, 2);
-            
-            % Constrain joystick to circular area
-            r = 0.3; 
-            if norm([x - joystickCenterX, y - joystickCenterY]) > r
-                theta = atan2(y - joystickCenterY, x - joystickCenterX);
-                x = joystickCenterX + r * cos(theta);
-                y = joystickCenterY + r * sin(theta);
-
-            end
-            
-            set(joystickHandle, 'XData', x, 'YData', y);
-            
-            % % Display values (optional)
-            % disp(['Joystick Position: X = ', num2str(x - joystickCenterX), ', Y = ', num2str(y - joystickCenterY)]);
-        elseif isMoving2
-            pt = get(axesHandle, 'CurrentPoint'); % Get mouse position
-            
-            x2 = pt(1, 1);
-            y2 = pt(1, 2);
-            
-            % Constrain joystick to circular area
-            r = 0.3; 
-            if norm([x2 - joystickCenterX2, y2 - joystickCenterY2]) > r
-                theta = atan2(y2 - joystickCenterY2, x2 - joystickCenterX2);
-                x2 = joystickCenterX2 + r * cos(theta);
-                y2 = joystickCenterY2 + r * sin(theta);
-            end
-            
-            set(joystickHandle2, 'XData', x2, 'YData', y2);
-        end
-    end
+    
 
     % Mouse release function
     function mouseRelease(~, ~)
