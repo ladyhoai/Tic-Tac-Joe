@@ -3,11 +3,20 @@
 
 % Create a figure for the grid
 global fig;
-fig = figure('Position', [100, 100, 600, 480], 'MenuBar', 'none', ...
-             'Name', 'Highlighting 4x4 Tic Tac Toe Grid', 'NumberTitle', 'off');
+fig = figure('Position', [0, 0, 600, 480], 'MenuBar', 'none', ...
+             'Name', 'Tic Tac Toe Grid', 'NumberTitle', 'off');
+
+global estop; 
+estop = false;
 global mapborder;
 global row;
 global col;
+
+global clickedX;
+global clickedY;
+
+global bot;
+global player;
 
 mapborder = [115 506 52 440];
 hold on;
@@ -40,6 +49,37 @@ set(fig, 'WindowButtonDownFcn', @(src, event) mouseClickCallback(src));
 
 hold off;
 
+global figControl;
+figControl = figure('Position', [0, 640, 620, 330], 'MenuBar', 'none', ...
+             'Name', 'Control', 'NumberTitle', 'off');
+
+hButton = uicontrol('Style', 'pushbutton', 'String', 'E-STOP',...
+    'Position', [260, 0, 100, 100],...  % [x, y, width, height]
+    'BackgroundColor', 'r',...  % Set background color to red
+    'ForegroundColor', 'w',...  % Set text color to white
+    'FontSize', 12, ...
+    'Callback', @estopped);            % Set font size
+
+teachFunction;
+
+function estopped(src, event) 
+    global estop;
+    global bot; global player;
+    estop = ~estop;
+    if (estop == true)
+        bot.stop();
+        player.stop();
+        disp('System terminated!');
+    else
+        bot.animateWithGripper(bot.armJoint);
+        player.animateWithGripper(player.armJoint);
+        bot.resume();
+        player.resume();
+        disp("System continued");
+    end
+
+end
+
 % Function to be called when the mouse moves
 function mouseMove(rectHandles)
     global fig;
@@ -50,7 +90,6 @@ function mouseMove(rectHandles)
     mousePos = get(fig, 'CurrentPoint');
     x = mousePos(1, 1);  % X position
     y = mousePos(1, 2);  % Y position
-    
     % Determine which grid cell the mouse is over
     col = floor(mapValue(x, mapborder(1, 1), mapborder(1, 2), 1, 8));  % Column index (1 to 4)
     row = floor(mapValue(y, mapborder(1, 3), mapborder(1, 4), 1, 8));  % Row index (1 to 4)
@@ -66,6 +105,7 @@ function mouseMove(rectHandles)
         set(rectHandles(row, col), 'FaceColor', [0.8, 0.8, 0.8]);  % Light gray
         % fprintf('Row: %d, Column: %d\n', row, col);
     end
+    
 end
 
 % Callback function to handle mouse clicks
@@ -73,31 +113,35 @@ function mouseClickCallback(~)
     global row;
     global col;
     global placed;
-    fprintf('Row: %d, Column: %d\n',8 - row, 8 - col);
+    global fig;
+    global clickedX;
+    global clickedY;
     % Define the length of the 'X' lines
-    xCenter = col - 0.5;
-    yCenter = row - 0.5;
-    hold on;
-
-    % lineLength = 0.3; % You can adjust this as needed
-    % 
-    % % Draw the 'X' using lines
-    % line([xCenter - lineLength, xCenter + lineLength], ...
-    %      [yCenter - lineLength, yCenter + lineLength], 'Color', 'r', 'LineWidth', 2);
-    % line([xCenter - lineLength, xCenter + lineLength], ...
-    %      [yCenter + lineLength, yCenter - lineLength], 'Color', 'r', 'LineWidth', 2);
-    % 
-    % Parameters for the circle
-    theta = linspace(0, 2 * pi, 100); % Angle parameter for circle
-    radius = 0.3; % Adjust as needed
-
-    % Calculate circle coordinates
-    xCircle = radius * cos(theta) + xCenter;
-    yCircle = radius * sin(theta) + yCenter;
-
-    % Draw the circle using the calculated coordinates
-    plot(xCircle, yCircle, 'Color', 'b', 'LineWidth', 2);
-    placed = 1;
+    if placed == 0
+        xCenter = col - 0.5;
+        yCenter = row - 0.5;
+        hold on;
+        clickedX = row;
+        clickedY = col;
+        % Parameters for the circle
+        theta = linspace(0, 2 * pi, 100); % Angle parameter for circle
+        radius = 0.3; % Adjust as needed
+    
+        % Calculate circle coordinates
+       
+        xCircle = radius * cos(theta) + xCenter;
+        yCircle = radius * sin(theta) + yCenter;
+    
+        fprintf('Row: %d, Column: %d\n',8 - row, 8 - col);
+        % Draw the circle using the calculated coordinates
+        figure(fig);
+        hold on;
+        plot(xCircle, yCircle, 'Color', 'b', 'LineWidth', 2);
+        placed = 1;
+        hold off;
+    else
+        disp("Please wait for your turn after your opponent has finished placing their mark.");
+    end
 
 end
 
