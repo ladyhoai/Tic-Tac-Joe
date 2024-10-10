@@ -146,7 +146,7 @@ classdef UR3e < RobotBaseClass
                     for i = 1:2:length(varargin)
                         switch varargin{i}
                             case 'RMRC'
-                                self.currentTraj = self.calculateRMRC(goal, orientation); % the qMatrix returned by RMRC calculation
+                                self.currentTraj = self.calculateRMRC(goal, orientation, self.armJoint); % the qMatrix returned by RMRC calculation
                                 self.currentTraj(end, :) = [];
                         end
                     end
