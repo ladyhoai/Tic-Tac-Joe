@@ -1,5 +1,7 @@
 # Tic-Tac-Joe
 
+Video Demonstration : https://youtu.be/gkXo_UkZbmU
+
 Overview
 
 This MATLAB simulation demonstrates two robotic arms, UR3E and CRX10IA, collaborating to play a game of Tic-Tac-Toe. The robots are programmed to alternate turns, marking X's and O's on a virtual 8x8 board. The simulation demonstrates robotic arm motion, pick-and-place operations, and basic game logic for Tic-Tac-Toe. The robot arms can support each other to reach the play squares that are not within one's 
@@ -34,6 +36,9 @@ Files Included
 Future Improvements
 
     Implement Threat-Space-Search for the AI.
+
+Environment update!
+<img width="1440" alt="Screen Shot 2024-10-23 at 10 54 17 am" src="https://github.com/user-attachments/assets/f618d0c8-90b7-4858-9e23-03b7eb03d175">
 
 <img width="1440" alt="Screen Shot 2024-10-01 at 2 33 33 am" src="https://github.com/user-attachments/assets/1d66f412-b00d-4de5-9c2b-a15232b98b91">
 <img width="1440" alt="Screen Shot 2024-10-01 at 2 35 23 am" src="https://github.com/user-attachments/assets/712568e7-ed89-4fff-803e-9b5a98d002e0">
