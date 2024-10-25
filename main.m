@@ -8,7 +8,8 @@ end
 % the UR3e can be placed on a pole so that it could perform weird pose.
 % The CRX10iA can help the UR3e reach far goals.
 view([135, 30]);
-axis([-1.5 1 -0.6 1.5 -0.2 1.5]);
+axis auto;
+% axis([-1.5 1 -0.6 1.5 -1 1.5]);
 hold on;
 global placed;
 placed = 1;
@@ -18,6 +19,13 @@ global estop;
 posPlayer = eye(4); posBot = eye(4);
 posBot(1:3, 4) = [0.5, 0.6, 0];
 posPlayer(1:3, 4) = [-1, 0.6, 0];
+
+ptable = PlaceObject('models/playTable.ply', [-0.22 0.4 -0.01]);
+barrier = PlaceObject('models/barrier.ply', [-0.22 0.4 -0.01]);
+floor = PlaceObject('models/floor.ply', [-0.22 0.4 -0.01]);
+PlaceObject('models/peripherals.ply', [-0.22 0.4 -0.01]);
+PlaceObject('models/siren.ply', [-0.22 0.4 -0.01]);
+
 global bot;
 global player;
 % initial bot end effector pos x = 0 y = 0.8 z = 0.3
@@ -25,30 +33,50 @@ bot = CRX10IA(posBot);
 
 %initial player end effector pos x = -0.8 y = 0.8 z = 0.3
 player = UR3e(posPlayer);
+
+global colllisionCube;
+colllisionCube = RectangularPrism([-0.075, -0.075, 0.425], [0.075, 0.075, 0.575]);
+
 GUI;
 
-% fig2 = figure('Position', [100, 100, 600, 480], 'MenuBar', 'none', ...
-%              'Name', 'Control', 'NumberTitle', 'off');
-% 
+figure(1);
+set(gcf, 'Position', [620, 640, 740, 480]);  % Position it to the right of figControl
+axis manual;
+
 initialMark = [4, 3];
 boardGame = board();
 drawX(9 - initialMark(1, 2) - 0.5,9 - initialMark(1, 1) - 0.5);
 
 boardGame.placeMark(initialMark(1, 1), 9-initialMark(1, 2), 1);
+state = 1;
 
-bot.MoveRobot(bot.homePos);
-player.MoveRobot(player.homePos);
+while true
+    drawnow;
+    if (estop == true) continue; end
+    if state == 1
+        bot.MoveRobot(bot.homePos);
+        if (estop == true) continue; end
+        state = state + 1;
+    end
+    if state == 2
+        player.MoveRobot(player.homePos);
+        if (estop == true) continue; end
+        state = state + 1;
+    end
 
-bot.currentPoint = 1;
-player.currentPoint = 1;
-
-bot.pickAndPlace([initialMark(2)-1, initialMark(1)-1]);
+    if state == 3
+        bot.pickAndPlace([initialMark(2)-1, initialMark(1)-1]);
+        if (estop == true) continue; end
+        break;
+    end
+end
 
 bot.currentPoint = 1;
 player.currentPoint = 1;
 
 placed = 0;
 state = 1;
+
 while true
     drawnow;
 
