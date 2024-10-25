@@ -54,8 +54,8 @@ classdef UR3e < RobotBaseClass
             self.handRight = GripperHand(self.model.fkine(self.model.getpos()).T * self.leftHandTrans * trotz(pi/1.5)); 
 
             self.helperPlayer = helper();
-            self.XArray = self.helperPlayer.placeXandO("OTick.PLY", self.XArray, baseTr, -0.25);
-            a = PlaceObject("OTick.PLY", [0,0,0]);
+            self.XArray = self.helperPlayer.placeXandO("models/OTick.PLY", self.XArray, baseTr, -0.25);
+            a = PlaceObject("models/OTick.PLY", [0,0,0]);
             self.originalTransform = get(a, 'Vertices');
             delete(a);
             drawnow
@@ -151,9 +151,24 @@ classdef UR3e < RobotBaseClass
                         end
                     end
                 end
-            end
 
+                if (IsCollision(self.model, self.currentTraj, [1 2 3; 1 3 4],...
+                        [-10 -10 -0.01; 10 -10 -0.01; 10 10 -0.01; -10 10 -0.01], [0 0 1; 0 0 1], true))
+                    disp('UR3e have potential collision, e-stopping now');
+                    return;
+                end
+            end
+            
+            global colllisionCube;
             for i = self.currentStep:size(self.currentTraj, 1)
+
+                if (colllisionCube.checkCollide(self.model, jointArrayPlayer) == true)
+                    global estop;
+                    estop = true;
+                    self.stop();
+                    disp('System terminated due to collision with UR3e');
+                end
+
                 if self.estop == true
                     self.currentStep = i;
                     return;
@@ -303,14 +318,19 @@ classdef UR3e < RobotBaseClass
         end
 
         function animateWithGripper(self, jointVal)
-            self.model.animate(jointVal);
-            endPose = self.model.fkine(jointVal);
-            self.handLeft.model.base = endPose.T * self.leftHandTrans * trotz(pi/2.4); 
-            self.handRight.model.base = endPose.T * self.rightHandTrans * trotz(pi/2.4);
-            self.handLeft.model.animate(self.handLeft.model.getpos());
-            self.handRight.model.animate(self.handRight.model.getpos());
-        end
+            if (~IsCollision(self.model, jointVal, [1 2 3; 1 3 4],...
+                        [-10 -10 -0.01; 10 -10 -0.01; 10 10 -0.01; -10 10 -0.01], [0 0 1; 0 0 1], true))
 
+                self.model.animate(jointVal);
+                endPose = self.model.fkine(jointVal);
+                self.handLeft.model.base = endPose.T * self.leftHandTrans * trotz(pi/2.4); 
+                self.handRight.model.base = endPose.T * self.rightHandTrans * trotz(pi/2.4);
+                self.handLeft.model.animate(self.handLeft.model.getpos());
+                self.handRight.model.animate(self.handRight.model.getpos());
+            else
+                disp('UR3e is colliding');
+            end
+        end
 
     end
 end
