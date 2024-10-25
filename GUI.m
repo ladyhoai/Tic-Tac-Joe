@@ -60,17 +60,19 @@ hButton = uicontrol('Style', 'pushbutton', 'String', 'E-STOP',...
     'FontSize', 12, ...
     'Callback', @estopped);            % Set font size
 
-teachFunction;
+teachFunction();
 
 function estopped(src, event) 
     global estop;
     global bot; global player;
-    estop = ~estop;
-    if (estop == true)
+    % estop = ~estop;
+    if (estop == false)
+        estop = true;
         bot.stop();
         player.stop();
         disp('System terminated!');
     else
+        estop = false;
         bot.animateWithGripper(bot.armJoint);
         player.animateWithGripper(player.armJoint);
         bot.resume();
