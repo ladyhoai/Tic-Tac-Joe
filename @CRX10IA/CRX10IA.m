@@ -1,7 +1,11 @@
 classdef CRX10IA < RobotBaseClass
-    %% CRX10IA from FANUC
+    %% UR3e Universal Robot 3kg payload robot model
     %
-   
+    % WARNING: This model has been created by UTS students in the subject
+    % 41013. No guarentee is made about the accuracy or correctness of the
+    % of the DH parameters of the accompanying ply files. Do not assume
+    % that this matches the real robot!
+
     properties(Access = public)   
         plyFileNameStem = 'CRX10IA';
         handLeft;
@@ -50,11 +54,12 @@ classdef CRX10IA < RobotBaseClass
             self.handLeft = GripperHand(self.model.fkine(self.model.getpos()).T * self.rightHandTrans * trotz(pi/1.5)); 
             self.handRight = GripperHand(self.model.fkine(self.model.getpos()).T * self.leftHandTrans * trotz(pi/1.5)); 
             self.helperBot = helper();
-            self.OArray = self.helperBot.placeXandO("XTick.PLY", self.OArray, baseTr, -0.45);
+            self.OArray = self.helperBot.placeXandO("models/XTick.PLY", self.OArray, baseTr, -0.45);
 
-            a = PlaceObject("XTick.PLY", [0,0,0]);
+            a = PlaceObject("models/XTick.PLY", [0,0,0]);
             self.originalTransform = get(a, 'Vertices');
             delete(a);
+
             drawnow
         end
 
@@ -145,13 +150,27 @@ classdef CRX10IA < RobotBaseClass
                         end
                     end
                 end
+
+                if (IsCollision(self.model, self.currentTraj, [1 2 3; 1 3 4],...
+                        [-10 -10 -0.01; 10 -10 -0.01; 10 10 -0.01; -10 10 -0.01], [0 0 1; 0 0 1], true))
+                    disp('CRX10IA have potential collision, e-stopping now');      
+                    return;
+                end
+
             end
 
+            global colllisionCube;
             for i = self.currentStep:size(self.currentTraj, 1)
+
+                if (colllisionCube.checkCollide(self.model, jointArrayBot) == true)
+                    global estop;
+                    estop = true;
+                    self.stop();
+                    disp('System terminated due to collision with CRX10IA');
+                end
 
                 if self.estop == true
                     self.currentStep = i;
-                    % disp(self.currentStep);
                     return;
                 end
                 
@@ -162,7 +181,7 @@ classdef CRX10IA < RobotBaseClass
                     set(jointArrayBotValue(y), 'String', num2str(self.currentTraj(i, y), 3));
                 end
                 jointArrayBot = self.currentTraj(i, :);
-                
+
                 fkineEndTraj = self.model.fkine(self.currentTraj(i, :));
                 fkineEndTraj = fkineEndTraj.T * transl(0,0,0.06);
 
@@ -328,12 +347,18 @@ classdef CRX10IA < RobotBaseClass
         end
 
         function animateWithGripper(self, jointVal)
-            self.model.animate(jointVal);
-            endPose = self.model.fkine(jointVal);
-            self.handLeft.model.base = endPose.T * self.leftHandTrans * trotz(pi/2.55); 
-            self.handRight.model.base = endPose.T * self.rightHandTrans * trotz(pi/2.55);
-            self.handLeft.model.animate(self.handLeft.model.getpos());
-            self.handRight.model.animate(self.handRight.model.getpos());
+            if (~IsCollision(self.model, jointVal, [1 2 3; 1 3 4],...
+                        [-10 -10 -0.01; 10 -10 -0.01; 10 10 -0.01; -10 10 -0.01], [0 0 1; 0 0 1], true))
+                    
+                self.model.animate(jointVal);
+                endPose = self.model.fkine(jointVal);
+                self.handLeft.model.base = endPose.T * self.leftHandTrans * trotz(pi/2.55); 
+                self.handRight.model.base = endPose.T * self.rightHandTrans * trotz(pi/2.55);
+                self.handLeft.model.animate(self.handLeft.model.getpos());
+                self.handRight.model.animate(self.handRight.model.getpos());
+            else
+                disp('CRX10IA Robot is colliding with the table');
+            end
         end
     end
 end
