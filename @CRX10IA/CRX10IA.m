@@ -10,6 +10,7 @@ classdef CRX10IA < RobotBaseClass
     end
     
     methods
+
 %% Constructor
     function self = CRX10IA(baseTr,useTool,toolFilename)
             if nargin < 3
